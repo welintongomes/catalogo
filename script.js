@@ -5,6 +5,7 @@ titulo.addEventListener('click', () => {
   location.reload(); // Recarrega a página atual
 });
 // Abrindo ou criando o banco de dados IndexedDB
+// Função para abrir ou criar o banco de dados IndexedDB
 function abrirBancoDeDados() {
   return new Promise((resolve, reject) => {
       const request = indexedDB.open('BancoDeCodigos', 1);
@@ -12,7 +13,7 @@ function abrirBancoDeDados() {
       request.onupgradeneeded = function (event) {
           const db = event.target.result;
           const objectStore = db.createObjectStore('codigos', { keyPath: 'id', autoIncrement: true });
-          objectStore.createIndex('titulo', 'titulo', { unique: false });
+          objectStore.createIndex('titulo', 'titulo', { unique: true }); // Definir 'titulo' como único
           objectStore.createIndex('conteudo', 'conteudo', { unique: false });
           objectStore.createIndex('imagem', 'imagem', { unique: false });
       };
@@ -27,36 +28,132 @@ function abrirBancoDeDados() {
   });
 }
 
-// Função para adicionar ou atualizar código no banco de dados
-function adicionarCodigo(titulo, conteudo, imagem, id = null) {
-  abrirBancoDeDados().then(db => {
-      const transaction = db.transaction(['codigos'], 'readwrite');
-      const objectStore = transaction.objectStore('codigos');
+// Função para verificar se o título já existe no banco de dados
+function verificarTituloExistente(titulo) {
+  return new Promise((resolve, reject) => {
+      abrirBancoDeDados().then(db => {
+          const transaction = db.transaction(['codigos'], 'readonly');
+          const objectStore = transaction.objectStore('codigos');
+          const index = objectStore.index('titulo');
+          
+          const request = index.get(titulo); // Procurar o título
 
-      const codigo = { titulo, conteudo, imagem };
+          request.onsuccess = function(event) {
+              if (event.target.result) {
+                  resolve(true);  // Título já existe
+              } else {
+                  resolve(false); // Título não existe
+              }
+          };
 
-      if (id) {
-          // Atualiza o código existente
-          codigo.id = id;
-          const request = objectStore.put(codigo);
-          request.onsuccess = function () {
-              mostrarMensagemFeedback('Dados atualizados com sucesso!', 'success');
+          request.onerror = function(event) {
+              reject('Erro ao verificar título: ' + event.target.errorCode);
           };
-          request.onerror = function () {
-              mostrarMensagemFeedback('Erro ao atualizar dados.', 'danger');
-          };
-      } else {
-          // Adiciona um novo código
-          const request = objectStore.add(codigo);
-          request.onsuccess = function () {
-              mostrarMensagemFeedback('Dados adicionados com sucesso!', 'success');
-          };
-          request.onerror = function () {
-              mostrarMensagemFeedback('Erro ao adicionar dados.', 'danger');
-          };
-      }
+      });
   });
 }
+
+// // Função para adicionar ou atualizar código no banco de dados
+// function adicionarCodigo(titulo, conteudo, imagem, id = null) {
+//   verificarTituloExistente(titulo).then(existe => {
+//       if (existe && !id) { // Se o título já existe e não é uma atualização
+//           mostrarMensagemFeedback('Erro: Título já existe.', 'danger');
+//       } else {
+//           abrirBancoDeDados().then(db => {
+//               const transaction = db.transaction(['codigos'], 'readwrite');
+//               const objectStore = transaction.objectStore('codigos');
+              
+//               const codigo = { titulo, conteudo, imagem };
+
+//               if (id) {
+//                   // Atualiza o código existente
+//                   codigo.id = id;
+//                   const request = objectStore.put(codigo);
+//                   request.onsuccess = function () {
+//                       mostrarMensagemFeedback('Dados atualizados com sucesso!', 'success');
+//                   };
+//                   request.onerror = function () {
+//                       mostrarMensagemFeedback('Erro ao atualizar dados.', 'danger');
+//                   };
+//               } else {
+//                   // Adiciona um novo código
+//                   const request = objectStore.add(codigo);
+//                   request.onsuccess = function () {
+//                       mostrarMensagemFeedback('Dados adicionados com sucesso!', 'success');
+//                   };
+//                   request.onerror = function () {
+//                       mostrarMensagemFeedback('Erro ao adicionar dados.', 'danger');
+//                   };
+//               }
+//           });
+//       }
+//   }).catch(error => {
+//       mostrarMensagemFeedback('Erro ao verificar título: ' + error, 'danger');
+//   });
+// }
+// 2 -----------------------------
+// Função para adicionar ou atualizar código no banco de dados
+function adicionarCodigo(titulo, conteudo, imagem, id = null) {
+  verificarTituloExistente(titulo).then(existe => {
+      if (existe && !id) { // Se o título já existe e não é uma atualização
+          mostrarMensagemFeedback('Erro: Título já existe.', 'danger');
+      } else {
+          abrirBancoDeDados().then(db => {
+              const transaction = db.transaction(['codigos'], 'readwrite');
+              const objectStore = transaction.objectStore('codigos');
+              
+              const codigo = { titulo, conteudo, imagem };
+
+              if (id) {
+                  // Atualiza o código existente
+                  codigo.id = id;
+                  const request = objectStore.put(codigo);
+                  request.onsuccess = function () {
+                      mostrarMensagemFeedback('Dados atualizados com sucesso!', 'success');
+                      // Limpa o formulário ao sucesso da atualização
+                      formAdicionar.reset();
+                      formAdicionar.removeAttribute('data-id');
+                      document.getElementById('imagemCodigo').value = '';
+                  };
+                  request.onerror = function () {
+                      mostrarMensagemFeedback('Erro ao atualizar dados.', 'danger');
+                  };
+              } else {
+                  // Adiciona um novo código
+                  const request = objectStore.add(codigo);
+                  request.onsuccess = function () {
+                      mostrarMensagemFeedback('Dados adicionados com sucesso!', 'success');
+                      // Limpa o formulário ao sucesso da adição
+                      formAdicionar.reset();
+                      formAdicionar.removeAttribute('data-id');
+                      document.getElementById('imagemCodigo').value = '';
+                  };
+                  request.onerror = function () {
+                      mostrarMensagemFeedback('Erro ao adicionar dados.', 'danger');
+                  };
+              }
+          });
+      }
+  }).catch(error => {
+      mostrarMensagemFeedback('Erro ao verificar título: ' + error, 'danger');
+  });
+}
+
+// Manipulando o formulário para adicionar ou editar códigos
+const formAdicionar = document.getElementById('formAdicionar');
+formAdicionar.addEventListener('submit', async (event) => {
+  event.preventDefault(); // Evita o recarregamento da página
+  const titulo = document.getElementById('tituloCodigo').value;
+  const conteudo = document.getElementById('conteudoCodigo').value;
+  const imagem = await carregarImagem({ target: document.getElementById('imagemCodigo') });
+  const id = formAdicionar.getAttribute('data-id'); // Pega o ID para edição, se houver
+
+  adicionarCodigo(titulo, conteudo, imagem, id ? Number(id) : null);
+
+  // Agora o reset e limpeza do formulário acontecem dentro da função adicionarCodigo ao sucesso
+});
+
+// 2 -----------------------------
 
 // Função para carregar a imagem
 function carregarImagem(event) {
@@ -74,7 +171,6 @@ function carregarImagem(event) {
       }
   });
 }
-
 
 // Função para exibir mensagens de feedback
 function mostrarMensagemFeedback(mensagem, tipo) {
@@ -128,8 +224,6 @@ document.getElementById('confirmarExclusao').addEventListener('click', () => {
   modalConfirmacao.hide();
 });
 
-
-
 // Função para excluir um código
 function excluirCodigo(id) {
   abrirBancoDeDados().then(db => {
@@ -151,8 +245,6 @@ function excluirCodigo(id) {
       };
   });
 }
-
-
 
 // Função para carregar o código no formulário para edição
 function carregarCodigoParaEdicao(id) {
@@ -187,84 +279,51 @@ function carregarCodigoParaEdicao(id) {
   });
 }
 
-
-
-// Função para pesquisar códigos no banco de dados
-// function pesquisarCodigosIndexedDB(termo) {
-//     return new Promise((resolve, reject) => {
-//         abrirBancoDeDados().then(db => {
-//             const transaction = db.transaction(['codigos'], 'readonly');
-//             const objectStore = transaction.objectStore('codigos');
-
-//             const codigosEncontrados = [];
-
-//             objectStore.openCursor().onsuccess = function (event) {
-//                 const cursor = event.target.result;
-//                 if (cursor) {
-//                     const { titulo, conteudo, imagem, id } = cursor.value;
-//                     if (titulo.toLowerCase().includes(termo.toLowerCase()) || conteudo.toLowerCase().includes(termo.toLowerCase())) {
-//                         codigosEncontrados.push(cursor.value);
-//                     }
-//                     cursor.continue();
-//                 } else {
-//                     resolve(codigosEncontrados);
-//                 }
-//             };
-
-//             objectStore.openCursor().onerror = function (event) {
-//                 reject('Erro ao pesquisar códigos: ' + event.target.errorCode);
-//             };
-//         });
-//     });
-// }
-//inicio nova funçao para pesquisar no banco de dados
 // Função para remover acentos e transformar em letras minúsculas
 function removerAcentos(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Função para pesquisar códigos no banco de dados
+// Função para pesquisar códigos no banco de dados somente pelo título
 function pesquisarCodigosIndexedDB(termo) {
-  return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       abrirBancoDeDados().then(db => {
-          const transaction = db.transaction(['codigos'], 'readonly');
-          const objectStore = transaction.objectStore('codigos');
-
-          const codigosEncontrados = [];
-
-          const termosBusca = removerAcentos(termo).split(' '); // Quebra o termo em palavras e remove acentuação
-
-          objectStore.openCursor().onsuccess = function (event) {
-              const cursor = event.target.result;
-              if (cursor) {
-                  const { titulo, conteudo } = cursor.value;
-
-                  const tituloNormalizado = removerAcentos(titulo);
-                  const conteudoNormalizado = removerAcentos(conteudo);
-
-                  // Verifica se todas as palavras da busca estão presentes no título ou no conteúdo
-                  const corresponde = termosBusca.every(palavra =>
-                      tituloNormalizado.includes(palavra) || conteudoNormalizado.includes(palavra)
-                  );
-
-                  if (corresponde) {
-                      codigosEncontrados.push(cursor.value);
-                  }
-
-                  cursor.continue();
-              } else {
-                  resolve(codigosEncontrados);
-              }
-          };
-
-          objectStore.openCursor().onerror = function (event) {
-              reject('Erro ao pesquisar códigos: ' + event.target.errorCode);
-          };
+        const transaction = db.transaction(['codigos'], 'readonly');
+        const objectStore = transaction.objectStore('codigos');
+  
+        const codigosEncontrados = [];
+        const termosBusca = removerAcentos(termo).split(' '); // Remove acentuação e divide o termo
+  
+        objectStore.openCursor().onsuccess = function(event) {
+          const cursor = event.target.result;
+          if (cursor) {
+            const { titulo } = cursor.value; // Somente título
+  
+            const tituloNormalizado = removerAcentos(titulo);
+  
+            // Verifica se todas as palavras da busca estão presentes no título
+            const corresponde = termosBusca.every(palavra =>
+              tituloNormalizado.includes(palavra)
+            );
+  
+            if (corresponde) {
+              codigosEncontrados.push(cursor.value);
+            }
+  
+            cursor.continue();
+          } else {
+            resolve(codigosEncontrados); // Retorna os resultados encontrados
+          }
+        };
+  
+        objectStore.openCursor().onerror = function(event) {
+          reject('Erro ao pesquisar códigos: ' + event.target.errorCode);
+        };
       });
-  });
-}
-
-//fim nova funçao para pesquisar no banco de dados
+    });
+  }
+  
+//Fim Função para pesquisar códigos no banco de dados somente pelo título
 
 // Função para mostrar os resultados e configurar a expansão dos itens
 function mostrarResultados(resultados) {
@@ -320,26 +379,6 @@ function mostrarResultados(resultados) {
   });
 }
 
-
-
-
-
-// Manipulando o formulário para adicionar ou editar códigos
-const formAdicionar = document.getElementById('formAdicionar');
-formAdicionar.addEventListener('submit', async (event) => {
-  event.preventDefault(); // Evita o recarregamento da página
-  const titulo = document.getElementById('tituloCodigo').value;
-  const conteudo = document.getElementById('conteudoCodigo').value;
-  const imagem = await carregarImagem({ target: document.getElementById('imagemCodigo') });
-  const id = formAdicionar.getAttribute('data-id'); // Pega o ID para edição, se houver
-
-  adicionarCodigo(titulo, conteudo, imagem, id ? Number(id) : null);
-
-  // Limpa o formulário e remove o ID para futuras adições
-  formAdicionar.reset();
-  document.getElementById('imagemCodigo').value = '';
-  formAdicionar.removeAttribute('data-id');
-});
 
 // Função para exportar dados como JSON
 function exportarDados() {
@@ -420,7 +459,6 @@ document.getElementById('barraPesquisa').addEventListener('input', async (event)
   }
 });
 
-
 // Selecionar a barra de pesquisa e o formulário
 const barraPesquisa = document.getElementById('barraPesquisa');
 const formaAdicionar = document.getElementById('formAdicionar');
@@ -460,8 +498,6 @@ document.getElementById('configButton').addEventListener('click', function () {
   const configPanel = document.getElementById('configPanel');
   configPanel.classList.toggle('d-none'); // Mostra ou esconde o painel
 });
-
-
 
 // Aplicar o tema ao clicar nas opções
 document.getElementById('lightTheme').addEventListener('change', function () {
